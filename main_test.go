@@ -12,7 +12,8 @@ import (
 
 func Test_loadSrcRecords(t *testing.T) {
 	type args struct {
-		srcReader io.Reader
+		srcReader  io.Reader
+		isSrcFixed bool
 	}
 	tests := []struct {
 		name    string
@@ -21,7 +22,29 @@ func Test_loadSrcRecords(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Can load as expected",
+			name: "Can load as expected - fixed source",
+			args: args{
+				srcReader: transform.NewReader(
+					bytes.NewBufferString(`大村　幸佑　様,0000-0000-0000-0***,ＶＩＳＡ
+2022/08/05,ヨドバシカメラ　通信販売,4853,１,１,4853,
+2022/08/15,ＡＭＡＺＯＮ．ＣＯ．ＪＰ,3400,１,１,3400,
+大村　幸佑　様,0000-0000-0000-0***,ＡｐｐｌｅＰａｙ／ｉＤ
+2022/08/18,ファミリーマート／ｉＤ,340,１,１,340,ﾌｱﾐﾘ-ﾏ-ﾄ/ID
+,,,,,123456
+,,,,,123456,
+`),
+					japanese.ShiftJIS.NewEncoder()),
+				isSrcFixed: true,
+			},
+			want: [][]string{
+				{"2022/08/05", "ヨドバシカメラ　通信販売", "4853", "１", "１", "4853", ""},
+				{"2022/08/15", "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", "3400", "１", "１", "3400", ""},
+				{"2022/08/18", "ファミリーマート／ｉＤ", "340", "１", "１", "340", "ﾌｱﾐﾘ-ﾏ-ﾄ/ID"},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Can load as expected - non-fixed source",
 			args: args{
 				srcReader: transform.NewReader(
 					bytes.NewBufferString(`2022/7/4,ＡＭＡＺＯＮ．ＣＯ．ＪＰ,ご家族,1回払い,,'22/08,3844,3844,,,,,
@@ -30,6 +53,7 @@ func Test_loadSrcRecords(t *testing.T) {
 2022/7/19,メルカリ,ご家族,1回払い,,'22/08,2700,2700,,,,,
 `),
 					japanese.ShiftJIS.NewEncoder()),
+				isSrcFixed: false,
 			},
 			want: [][]string{
 				{"2022/7/4", "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", "ご家族", "1回払い", "", "'22/08", "3844", "3844", "", "", "", "", ""},
@@ -42,7 +66,7 @@ func Test_loadSrcRecords(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := loadSrcRecords(tt.args.srcReader)
+			got, err := loadSrcRecords(tt.args.srcReader, tt.args.isSrcFixed)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("loadSrcRecords() error = %v, wantErr %v", err, tt.wantErr)
 				return
@@ -56,7 +80,8 @@ func Test_loadSrcRecords(t *testing.T) {
 
 func Test_parseSrcRecords(t *testing.T) {
 	type args struct {
-		records [][]string
+		records    [][]string
+		isSrcFixed bool
 	}
 	tests := []struct {
 		name    string
@@ -65,7 +90,24 @@ func Test_parseSrcRecords(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "Can parse as expected",
+			name: "Can parse as expected - non-fixed source",
+			args: args{
+				records: [][]string{
+					{"2022/08/05", "ヨドバシカメラ　通信販売", "4853", "１", "１", "4853", ""},
+					{"2022/08/15", "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", "3400", "１", "１", "3400", ""},
+					{"2022/08/18", "ファミリーマート／ｉＤ", "340", "１", "１", "340", "ﾌｱﾐﾘ-ﾏ-ﾄ/ID"},
+				},
+				isSrcFixed: true,
+			},
+			want: []*srcRecord{
+				{Date: "2022/08/05", ShopName: "ヨドバシカメラ　通信販売", Amount: 4853},
+				{Date: "2022/08/15", ShopName: "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", Amount: 3400},
+				{Date: "2022/08/18", ShopName: "ファミリーマート／ｉＤ", Amount: 340},
+			},
+			wantErr: false,
+		},
+		{
+			name: "Can parse as expected - non-fixed source",
 			args: args{
 				records: [][]string{
 					{"2022/7/4", "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", "ご家族", "1回払い", "", "'22/08", "3844", "3844", "", "", "", "", ""},
@@ -73,6 +115,7 @@ func Test_parseSrcRecords(t *testing.T) {
 					{"2022/7/16", "セブン－イレブン／ｉＤ", "ご家族", "1回払い", "", "'22/08", "98", "98", "", "", "", "", ""},
 					{"2022/7/19", "メルカリ", "ご家族", "1回払い", "", "'22/08", "2700", "2700", "", "", "", "", ""},
 				},
+				isSrcFixed: false,
 			},
 			want: []*srcRecord{
 				{Date: "2022/7/4", ShopName: "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", Amount: 3844},
@@ -85,7 +128,7 @@ func Test_parseSrcRecords(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseSrcRecords(tt.args.records)
+			got, err := parseSrcRecords(tt.args.records, tt.args.isSrcFixed)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("parseSrcRecords() error = %v, wantErr %v", err, tt.wantErr)
 				return

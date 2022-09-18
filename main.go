@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -40,27 +41,34 @@ type (
 	}
 )
 
-var (
-	srcFilepath string
-	dstFilepath string
-)
-
 func main() {
 	os.Exit(run(os.Args))
 }
 
 func run(args []string) int {
+	var (
+		srcFilepath string
+		dstFilepath string
+		isSrcFixed  bool
+	)
+
 	flag.StringVar(
 		&srcFilepath,
 		"src",
 		"",
-		"Path of usage list CSV file downloaded from Vpass.")
+		"Path of the transaction list CSV file downloaded from Vpass.")
 
 	flag.StringVar(
 		&dstFilepath,
 		"dst",
 		"",
-		"Output CSV file path. By default, it outputs in same directory as src file path, with -output prefix.")
+		"Output CSV file path. By default, it outputs in the same directory as src file path, with -output prefix.")
+
+	flag.BoolVar(
+		&isSrcFixed,
+		"srcfixed",
+		true,
+		"Vpass has two types of transaction list: fixed and non-fixed.")
 
 	os.Args = args
 	flag.Parse()
@@ -77,14 +85,14 @@ func run(args []string) int {
 		errLogger.Println(fmt.Errorf("failed to open src file: %w", err))
 		return exitCodeError
 	}
-	srcRecords, err := loadSrcRecords(srcFile)
+	srcRecords, err := loadSrcRecords(srcFile, isSrcFixed)
 	if err != nil {
 		errLogger.Println(fmt.Errorf("failed to load src records: %w", err))
 		return exitCodeError
 	}
 	srcFile.Close()
 
-	parsedRecords, err := parseSrcRecords(srcRecords)
+	parsedRecords, err := parseSrcRecords(srcRecords, isSrcFixed)
 	if err != nil {
 		errLogger.Println(fmt.Errorf("failed to parse src records: %w", err))
 		return exitCodeError
@@ -108,22 +116,46 @@ func run(args []string) int {
 	return exitCodeOK
 }
 
-func loadSrcRecords(srcReader io.Reader) ([][]string, error) {
-	records, err := csv.NewReader(transform.NewReader(srcReader, japanese.ShiftJIS.NewDecoder())).ReadAll()
+func loadSrcRecords(srcReader io.Reader, isSrcFixed bool) ([][]string, error) {
+	transformReader := transform.NewReader(srcReader, japanese.ShiftJIS.NewDecoder())
+	var recordsReader io.Reader = transformReader
+
+	if isSrcFixed {
+		scanner := bufio.NewScanner(transformReader)
+		recordsText := ""
+		for scanner.Scan() {
+			record := scanner.Text()
+			// Exclude lines those are not starting with "20"
+			// because they have different numbers of columns and cannot be read as csv
+			if strings.HasPrefix(record, "20") {
+				recordsText += record
+				recordsText += "\n"
+			}
+		}
+
+		recordsReader = strings.NewReader(recordsText)
+	}
+
+	records, err := csv.NewReader(recordsReader).ReadAll()
 	if err != nil {
 		return nil, fmt.Errorf("failed to read src file: %w", err)
 	}
 	return records, nil
 }
 
-func parseSrcRecords(records [][]string) ([]*srcRecord, error) {
+func parseSrcRecords(records [][]string, isSrcFixed bool) ([]*srcRecord, error) {
 	srcRecords := make([]*srcRecord, 0, len(records))
+	amountColumnIndex := 6
+	if isSrcFixed {
+		amountColumnIndex = 2
+	}
 	for i := range records {
 		line := i + 1
-		amount, err := strconv.Atoi(records[i][6])
+		amount, err := strconv.Atoi(records[i][amountColumnIndex])
 		if err != nil {
-			return nil, fmt.Errorf("failed to convert amount text \"%s\": line %d", records[i][6], line)
+			return nil, fmt.Errorf("failed to convert amount text \"%s\": line %d", records[i][amountColumnIndex], line)
 		}
+
 		srcRecords = append(srcRecords, newSrcRecord(records[i][0], records[i][1], amount))
 	}
 
