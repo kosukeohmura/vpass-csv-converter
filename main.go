@@ -158,7 +158,11 @@ func parseFixedSrcRecords(records [][]string) ([]*srcRecord, error) {
 			return nil, fmt.Errorf("failed to convert amount text \"%s\": line %d", records[i][amountColumnIndex], line)
 		}
 
-		srcRecords = append(srcRecords, newSrcRecord(records[i][0], records[i][1], amount))
+		shopName := records[i][1]
+		if detailExists := len(records[i]) == 7 && records[i][6] != ""; detailExists {
+			shopName += " " + records[i][6]
+		}
+		srcRecords = append(srcRecords, newSrcRecord(records[i][0], shopName, amount))
 	}
 
 	return srcRecords, nil

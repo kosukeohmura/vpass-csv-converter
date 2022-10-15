@@ -100,7 +100,7 @@ func Test_parseFixedSrcRecords(t *testing.T) {
 			want: []*srcRecord{
 				{Date: "2022/08/05", ShopName: "ヨドバシカメラ　通信販売", Amount: 4853},
 				{Date: "2022/08/15", ShopName: "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", Amount: 3400},
-				{Date: "2022/08/18", ShopName: "ファミリーマート／ｉＤ", Amount: 340},
+				{Date: "2022/08/18", ShopName: "ファミリーマート／ｉＤ ﾌｱﾐﾘ-ﾏ-ﾄ/ID", Amount: 340},
 			},
 			wantErr: false,
 		},
