@@ -92,7 +92,12 @@ func run(args []string) int {
 	}
 	srcFile.Close()
 
-	parsedRecords, err := parseSrcRecords(srcRecords, isSrcFixed)
+	var parsedRecords []*srcRecord
+	if isSrcFixed {
+		parsedRecords, err = parseFixedSrcRecords(srcRecords)
+	} else {
+		parsedRecords, err = parseNonFixedSrcRecords(srcRecords)
+	}
 	if err != nil {
 		errLogger.Println(fmt.Errorf("failed to parse src records: %w", err))
 		return exitCodeError
@@ -143,12 +148,25 @@ func loadSrcRecords(srcReader io.Reader, isSrcFixed bool) ([][]string, error) {
 	return records, nil
 }
 
-func parseSrcRecords(records [][]string, isSrcFixed bool) ([]*srcRecord, error) {
+func parseFixedSrcRecords(records [][]string) ([]*srcRecord, error) {
+	srcRecords := make([]*srcRecord, 0, len(records))
+	amountColumnIndex := 2
+	for i := range records {
+		line := i + 1
+		amount, err := strconv.Atoi(records[i][amountColumnIndex])
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert amount text \"%s\": line %d", records[i][amountColumnIndex], line)
+		}
+
+		srcRecords = append(srcRecords, newSrcRecord(records[i][0], records[i][1], amount))
+	}
+
+	return srcRecords, nil
+}
+
+func parseNonFixedSrcRecords(records [][]string) ([]*srcRecord, error) {
 	srcRecords := make([]*srcRecord, 0, len(records))
 	amountColumnIndex := 6
-	if isSrcFixed {
-		amountColumnIndex = 2
-	}
 	for i := range records {
 		line := i + 1
 		amount, err := strconv.Atoi(records[i][amountColumnIndex])

@@ -78,10 +78,9 @@ func Test_loadSrcRecords(t *testing.T) {
 	}
 }
 
-func Test_parseSrcRecords(t *testing.T) {
+func Test_parseFixedSrcRecords(t *testing.T) {
 	type args struct {
-		records    [][]string
-		isSrcFixed bool
+		records [][]string
 	}
 	tests := []struct {
 		name    string
@@ -97,7 +96,6 @@ func Test_parseSrcRecords(t *testing.T) {
 					{"2022/08/15", "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", "3400", "１", "１", "3400", ""},
 					{"2022/08/18", "ファミリーマート／ｉＤ", "340", "１", "１", "340", "ﾌｱﾐﾘ-ﾏ-ﾄ/ID"},
 				},
-				isSrcFixed: true,
 			},
 			want: []*srcRecord{
 				{Date: "2022/08/05", ShopName: "ヨドバシカメラ　通信販売", Amount: 4853},
@@ -106,6 +104,31 @@ func Test_parseSrcRecords(t *testing.T) {
 			},
 			wantErr: false,
 		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := parseFixedSrcRecords(tt.args.records)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("parseFixedSrcRecords() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("parseFixedSrcRecords() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func Test_parseNonFixedSrcRecords(t *testing.T) {
+	type args struct {
+		records [][]string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    []*srcRecord
+		wantErr bool
+	}{
 		{
 			name: "Can parse as expected - non-fixed source",
 			args: args{
@@ -115,7 +138,6 @@ func Test_parseSrcRecords(t *testing.T) {
 					{"2022/7/16", "セブン－イレブン／ｉＤ", "ご家族", "1回払い", "", "'22/08", "98", "98", "", "", "", "", ""},
 					{"2022/7/19", "メルカリ", "ご家族", "1回払い", "", "'22/08", "2700", "2700", "", "", "", "", ""},
 				},
-				isSrcFixed: false,
 			},
 			want: []*srcRecord{
 				{Date: "2022/7/4", ShopName: "ＡＭＡＺＯＮ．ＣＯ．ＪＰ", Amount: 3844},
@@ -128,13 +150,13 @@ func Test_parseSrcRecords(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := parseSrcRecords(tt.args.records, tt.args.isSrcFixed)
+			got, err := parseNonFixedSrcRecords(tt.args.records)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("parseSrcRecords() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("parseNonFixedSrcRecords() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("parseSrcRecords() = %v, want %v", got, tt.want)
+				t.Errorf("parseNonFixedSrcRecords() = %v, want %v", got, tt.want)
 			}
 		})
 	}
